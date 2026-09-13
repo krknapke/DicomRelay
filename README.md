@@ -1,4 +1,4 @@
-﻿# DICOM Relay
+# DICOM Relay
 
 A lightweight, reliable Windows system tray application that wraps DCMTK's `storescp` and `storescu` command-line tools into an automated store-and-forward DICOM relay for clinical and veterinary imaging environments.
 
@@ -66,7 +66,7 @@ DICOM Relay uses DCMTK command-line binaries for DICOM networking and file parsi
 - `dcm2pnm.exe` — DICOM image converter (renders DICOM frames to PNG for the built-in viewer).
 
 **To install DCMTK:**
-1. Download the pre-compiled Windows binaries (64-bit) from the [DCMTK Downloads Page](https://www.dcmtk.org/en/dcmtk/dcmtkbin/).
+1. Download the pre-compiled Windows binaries (64-bit) from the [DCMTK Downloads Page](https://dicom.offis.de/en/dcmtk/dcmtk-tools/).
 2. Extract the archive to a permanent path (for example, `C:\dcmtk\`).
 3. Point the **DCMTK Bin Folder** path in the DICOM Relay settings to the `bin` folder (e.g., `C:\dcmtk\bin`).
 
