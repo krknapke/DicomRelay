@@ -226,12 +226,24 @@ namespace DicomRelay
             {
                 sb.AppendLine("echo Forwarding study: %STUDYDIR%");
 
-                // dcmodify — set institution name if configured
-                if (!string.IsNullOrWhiteSpace(cfg.InstitutionName))
+                // dcmodify — apply configured tag overrides if any
+                var overrides = cfg.TagOverrides
+                    .Where(t => !string.IsNullOrWhiteSpace(t.Tag) && t.Value != null)
+                    .ToList();
+
+                if (overrides.Count > 0)
                 {
-                    sb.AppendLine($"echo Setting institution name: {cfg.InstitutionName}");
+                    var argsBuilder = new StringBuilder("-nb");
+                    foreach (var ov in overrides)
+                    {
+                        var cleanTag = ov.Tag.Trim();
+                        var cleanVal = ov.Value.Replace("\"", "\\\"");
+                        argsBuilder.Append($" -i \"{cleanTag}={cleanVal}\"");
+                    }
+
+                    sb.AppendLine($"echo Applying {overrides.Count} DICOM tag override(s)...");
                     sb.AppendLine("for /r \"%STUDYDIR%\" %%f in (*) do (");
-                    sb.AppendLine($"  \"{dcmodify}\" -nb -i \"(0008,0080)={cfg.InstitutionName}\" \"%%f\"");
+                    sb.AppendLine($"  \"{dcmodify}\" {argsBuilder} \"%%f\"");
                     sb.AppendLine(")");
                 }
 

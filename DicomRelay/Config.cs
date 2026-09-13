@@ -71,10 +71,15 @@ namespace DicomRelay
         // ── Tag Overrides ─────────────────────────────────────────────────────
 
         /// <summary>
-        /// Optional institution name override for DICOM tag (0008,0080).
-        /// If specified, dcmodify will update instances prior to forwarding. Blank leaves tag unchanged.
+        /// Legacy single-field institution name override for DICOM tag (0008,0080).
+        /// Maintained for backwards compatibility with earlier configuration files.
         /// </summary>
         public string InstitutionName { get; set; } = "";
+
+        /// <summary>
+        /// List of custom DICOM tag modifications applied via dcmodify before forwarding.
+        /// </summary>
+        public List<DicomTagOverride> TagOverrides { get; set; } = new();
 
         // ── Reliability & Performance ─────────────────────────────────────────
 
@@ -144,7 +149,21 @@ namespace DicomRelay
                 if (File.Exists(ConfigPath))
                 {
                     var json = File.ReadAllText(ConfigPath);
-                    return JsonSerializer.Deserialize<Config>(json, JsonOpts) ?? new Config();
+                    var cfg = JsonSerializer.Deserialize<Config>(json, JsonOpts) ?? new Config();
+
+                    // Auto-migrate legacy InstitutionName if TagOverrides does not already contain (0008,0080)
+                    if (!string.IsNullOrWhiteSpace(cfg.InstitutionName) &&
+                        !cfg.TagOverrides.Exists(t => t.Tag.Trim().Equals("(0008,0080)", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        cfg.TagOverrides.Insert(0, new DicomTagOverride
+                        {
+                            Tag   = "(0008,0080)",
+                            Name  = "Institution Name",
+                            Value = cfg.InstitutionName
+                        });
+                    }
+
+                    return cfg;
                 }
             }
             catch { /* fall through to defaults */ }
@@ -165,5 +184,26 @@ namespace DicomRelay
                 Logger.Write("error", $"Could not save config: {ex.Message}");
             }
         }
+    }
+
+    /// <summary>
+    /// Defines a DICOM tag modification rule applied prior to forwarding via dcmodify.
+    /// </summary>
+    public class DicomTagOverride
+    {
+        /// <summary>
+        /// Tag address in hex format, e.g. "(0008,0080)".
+        /// </summary>
+        public string Tag   { get; set; } = "";
+
+        /// <summary>
+        /// Descriptive name for the tag (e.g. "Institution Name").
+        /// </summary>
+        public string Name  { get; set; } = "";
+
+        /// <summary>
+        /// Replacement value inserted into the DICOM dataset.
+        /// </summary>
+        public string Value { get; set; } = "";
     }
 }

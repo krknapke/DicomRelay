@@ -61,7 +61,7 @@ flowchart LR
 DICOM Relay uses DCMTK command-line binaries for DICOM networking and file parsing:
 - `storescp.exe` — Storage SCP daemon (receives incoming studies).
 - `storescu.exe` — Storage SCU client (forwards studies to destination PACS).
-- `dcmodify.exe` — DICOM dataset modifier (optional institution name override).
+- `dcmodify.exe` — DICOM dataset modifier (applies configured tag overrides such as Institution Name, Station Name, Study Description prior to forwarding).
 - `dcmdump.exe` — DICOM dump utility (extracts patient and study metadata for the UI).
 - `dcm2pnm.exe` — DICOM image converter (renders DICOM frames to PNG for the built-in viewer).
 
@@ -144,7 +144,8 @@ Settings are saved in `dicom_relay_config.json` next to the executable.
 | `autoForward` | `true` | Automatically forward studies once end-of-study timeout expires |
 | `manualMode` | `false` | When true, holds studies in queue for operator review in Studies tab |
 | `deleteAfterFwd` | `false` | Deletes local files after successful forward to save disk space |
-| `institutionName` | `""` | Optional override for DICOM tag `(0008,0080)` |
+| `tagOverrides` | `[]` | List of DICOM tag modification rules (`tag`, `name`, `value`) applied via `dcmodify` before forwarding |
+| `institutionName` | `""` | Legacy override for DICOM tag `(0008,0080)` (automatically synced with `tagOverrides`) |
 | `autoRestartHours`| `6` | Scheduled restart interval (in hours) to prevent socket exhaustion |
 | `startWithWindows`| `false` | Auto-start on Windows user login |
 | `maxPdu` | `8192` | Maximum PDU size in bytes (lower values increase stability on slow links) |

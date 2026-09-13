@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -379,17 +380,30 @@ namespace DicomRelay
                     try { File.Delete(f); } catch { }
                 }
 
-                // Apply institution name if set
-                if (!string.IsNullOrWhiteSpace(cfg.InstitutionName))
+                // Apply configured DICOM tag overrides if any
+                var overrides = cfg.TagOverrides
+                    .Where(t => !string.IsNullOrWhiteSpace(t.Tag) && t.Value != null)
+                    .ToList();
+
+                if (overrides.Count > 0 && File.Exists(dcmodify))
                 {
+                    var argsBuilder = new StringBuilder("-nb");
+                    foreach (var ov in overrides)
+                    {
+                        var cleanTag = ov.Tag.Trim();
+                        var cleanVal = ov.Value.Replace("\"", "\\\"");
+                        argsBuilder.Append($" -i \"{cleanTag}={cleanVal}\"");
+                    }
+                    var modifyArgs = argsBuilder.ToString();
+
                     foreach (var f in GetDicomFiles(folder))
                     {
                         var psi2 = new System.Diagnostics.ProcessStartInfo
                         {
-                            FileName = dcmodify,
-                            Arguments = $"-nb -i \"(0008,0080)={cfg.InstitutionName}\" \"{f}\"",
-                            UseShellExecute = false,
-                            CreateNoWindow  = true,
+                            FileName               = dcmodify,
+                            Arguments              = $"{modifyArgs} \"{f}\"",
+                            UseShellExecute        = false,
+                            CreateNoWindow         = true,
                             RedirectStandardOutput = true,
                             RedirectStandardError  = true,
                         };

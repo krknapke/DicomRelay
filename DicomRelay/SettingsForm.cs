@@ -45,11 +45,19 @@ namespace DicomRelay
         private CheckBox _autoFwd          = null!;
         private CheckBox _manualMode       = null!;
         private CheckBox _deleteAfter      = null!;
-        private TextBox  _institutionName  = null!;
         private CheckBox _startWithWindows = null!;
         private TextBox  _autoRestartHours = null!;
         private TextBox  _maxPdu           = null!;
         private TextBox  _retryCount       = null!;
+
+        // Tag overrides controls
+        private ComboBox _tagPresetCombo   = null!;
+        private TextBox  _tagHexBox        = null!;
+        private TextBox  _tagNameBox       = null!;
+        private TextBox  _tagValBox        = null!;
+        private Button   _addTagBtn        = null!;
+        private Button   _removeTagBtn     = null!;
+        private ListView _tagListView       = null!;
 
         // Log
         private RichTextBox _logBox = null!;
@@ -76,6 +84,26 @@ namespace DicomRelay
         private static readonly Color Red     = Color.FromArgb(248, 81,  73);
         private static readonly Color Yellow  = Color.FromArgb(210, 153, 34);
 
+        // Common DICOM tag presets for quick selection
+        private static readonly (string tag, string name)[] PresetTags = new[]
+        {
+            ("(0008,0080)", "Institution Name"),
+            ("(0008,0081)", "Institution Address"),
+            ("(0008,1040)", "Institutional Dept Name"),
+            ("(0008,1010)", "Station Name"),
+            ("(0008,1030)", "Study Description"),
+            ("(0008,103E)", "Series Description"),
+            ("(0008,0070)", "Manufacturer"),
+            ("(0008,1090)", "Manufacturer Model Name"),
+            ("(0008,0090)", "Referring Physician Name"),
+            ("(0008,1050)", "Performing Physician Name"),
+            ("(0008,1060)", "Reading Physician Name"),
+            ("(0008,1070)", "Operators' Name"),
+            ("(0018,1000)", "Device Serial Number"),
+            ("(0018,1020)", "Software Versions"),
+            ("(CUSTOM)",    "Custom Tag...")
+        };
+
         public SettingsForm(RelayManager relay, StudyManager studyManager)
         {
             _relay        = relay;
@@ -95,8 +123,8 @@ namespace DicomRelay
         private void InitializeForm()
         {
             Text            = "DICOM Relay";
-            Size            = new Size(720, 640);
-            MinimumSize     = new Size(600, 500);
+            Size            = new Size(760, 720);
+            MinimumSize     = new Size(720, 560);
             BackColor       = BG;
             ForeColor       = TextCol;
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -194,65 +222,237 @@ namespace DicomRelay
             var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = BG };
             page.Controls.Add(scroll);
 
-            int y = 10;
+            int y = 12;
 
-            // DCMTK section
-            var g0 = MakeGroup("DCMTK", scroll, ref y);
-            _dcmtkBin = AddFieldWithBrowse(g0, "Bin Folder", _cfg.DcmtkBin, ref y, browseDir: true);
-            FinalizeGroup(g0, y);
-            y += g0.Height + 8;
+            // ── Group 0: DCMTK Configuration ──
+            var g0 = MakeGroup("DCMTK Configuration", scroll, ref y);
+            _dcmtkBin = AddFieldWithBrowse(g0, "DCMTK Bin Directory", _cfg.DcmtkBin, 14, 20, 680, browseDir: true);
+            FinalizeGroup(g0, 70);
+            y = g0.Bottom + 12;
 
-            // Receiver section
-            y = g0.Bottom + 18;
+            // ── Group 1: Receiver (SCP — storescp) ──
             var g1 = MakeGroup("Receiver (SCP — storescp)   ←   Ultrasound sends here", scroll, ref y);
-            _rcvAet     = AddField(g1, "AE Title",                _cfg.RcvAet,     ref y);
-            _rcvPort    = AddField(g1, "Listen Port",             _cfg.RcvPort,    ref y);
-            _rcvDir     = AddFieldWithBrowse(g1, "Storage Directory", _cfg.RcvDir, ref y, browseDir: true);
-            _rcvTimeout = AddField(g1, "Association Timeout (s)", _cfg.RcvTimeout, ref y);
-            _eosTimeout = AddField(g1, "End-of-Study Timeout (s)", _cfg.EosTimeout, ref y);
-            FinalizeGroup(g1, y);
+            _rcvAet     = AddColField(g1, "AE Title",                _cfg.RcvAet,     14,  20, 320);
+            _rcvPort    = AddColField(g1, "Listen Port",             _cfg.RcvPort,    350, 20, 320);
+            _rcvTimeout = AddColField(g1, "Association Timeout (s)", _cfg.RcvTimeout, 14,  66, 320);
+            _eosTimeout = AddColField(g1, "End-of-Study Timeout (s)", _cfg.EosTimeout, 350, 66, 320);
+            _rcvDir     = AddFieldWithBrowse(g1, "Storage Directory", _cfg.RcvDir, 14, 112, 680, browseDir: true);
+            FinalizeGroup(g1, 164);
+            y = g1.Bottom + 12;
 
-            // Forwarder section
-            y = g1.Bottom + 18;
+            // ── Group 2: Forwarder (SCU — storescu) ──
             var g2 = MakeGroup("Forwarder (SCU — storescu)   →   WebPACS", scroll, ref y);
-            _fwdMyAet = AddField(g2, "My AE Title (Calling)", _cfg.FwdMyAet, ref y);
-            _fwdAet   = AddField(g2, "WebPACS AE Title",      _cfg.FwdAet,   ref y);
-            _fwdHost  = AddField(g2, "WebPACS Host / IP",     _cfg.FwdHost,  ref y);
-            _fwdPort  = AddField(g2, "WebPACS Port",          _cfg.FwdPort,  ref y);
-            FinalizeGroup(g2, y);
+            _fwdMyAet = AddColField(g2, "My AE Title (Calling)", _cfg.FwdMyAet, 14,  20, 320);
+            _fwdAet   = AddColField(g2, "WebPACS AE Title",      _cfg.FwdAet,   350, 20, 320);
+            _fwdHost  = AddColField(g2, "WebPACS Host / IP",     _cfg.FwdHost,  14,  66, 320);
+            _fwdPort  = AddColField(g2, "WebPACS Port",          _cfg.FwdPort,  350, 66, 320);
+            FinalizeGroup(g2, 118);
+            y = g2.Bottom + 12;
 
-            // Options section
-            y = g2.Bottom + 18;
-            var g3 = MakeGroup("Options", scroll, ref y);
-            _autoFwd        = AddCheck(g3, "Auto-forward on study complete",           _cfg.AutoForward,    ref y);
-            _manualMode     = AddCheck(g3, "Manual mode — queue studies for review before forwarding", _cfg.ManualMode, ref y);
-            _acceptAll      = AddCheck(g3, "Accept all DICOM transfer syntaxes (+xa)", _cfg.AcceptAll,      ref y);
-            _deleteAfter    = AddCheck(g3, "Delete local files after successful forward", _cfg.DeleteAfterFwd, ref y);
-            _institutionName = AddField(g3, "Override Institution Name (blank = don't change)", _cfg.InstitutionName, ref y);
-            FinalizeGroup(g3, y);
+            // ── Group 3: Options & Reliability ──
+            var g3 = MakeGroup("Options & Reliability", scroll, ref y);
+            _autoFwd          = AddCheckAt(g3, "Auto-forward on study complete",              _cfg.AutoForward,      14,  22);
+            _manualMode       = AddCheckAt(g3, "Manual mode (queue studies for review)",      _cfg.ManualMode,       350, 22);
+            _acceptAll        = AddCheckAt(g3, "Accept all transfer syntaxes (+xa)",          _cfg.AcceptAll,        14,  48);
+            _deleteAfter      = AddCheckAt(g3, "Delete local files after successful forward", _cfg.DeleteAfterFwd, 350, 48);
+            _startWithWindows = AddCheckAt(g3, "Start automatically when Windows logs in",    _cfg.StartWithWindows, 14,  74);
 
-            // Reliability section
-            y = g3.Bottom + 18;
-            var g4 = MakeGroup("Reliability", scroll, ref y);
-            _startWithWindows = AddCheck(g4, "Start automatically when Windows logs in", _cfg.StartWithWindows, ref y);
-            _autoRestartHours = AddField(g4, "Auto-restart relay every N hours (0 = never)", _cfg.AutoRestartHours.ToString(), ref y);
-            _maxPdu           = AddField(g4, "Max PDU size (bytes — lower = more stable on slow links, e.g. 8192, 4096)", _cfg.MaxPdu.ToString(), ref y);
-            _retryCount       = AddField(g4, "Forward retry attempts on failure (e.g. 3)", _cfg.RetryCount.ToString(), ref y);
-            FinalizeGroup(g4, y);
+            _autoRestartHours = AddColField(g3, "Auto-restart relay every N hours (0 = never)", _cfg.AutoRestartHours.ToString(), 14,  102, 320);
+            _retryCount       = AddColField(g3, "Forward retry attempts on failure (e.g. 3)",   _cfg.RetryCount.ToString(),       350, 102, 320);
+            _maxPdu           = AddColField(g3, "Max PDU size in bytes (e.g. 16384, 8192)",     _cfg.MaxPdu.ToString(),           14,  148, 320);
+            FinalizeGroup(g3, 200);
+            y = g3.Bottom + 12;
 
-            y = g4.Bottom + 18;
+            // ── Group 4: DICOM Tag Overrides ──
+            var g4 = MakeGroup("DICOM Tag Overrides (Modified before forwarding)", scroll, ref y);
+
+            var tagNote = MakeLabel("Add DICOM tags to modify or insert before sending to PACS (e.g., Institution Name, Station Name, Study Description):", 8, color: Muted);
+            tagNote.Location = new Point(14, 20);
+            g4.Controls.Add(tagNote);
+
+            // Row 1 of Tag input: Preset picker, Tag Hex, Tag Name
+            var lblPreset = MakeLabel("Preset Tag", 8, color: Muted);
+            lblPreset.Location = new Point(14, 42);
+            g4.Controls.Add(lblPreset);
+
+            _tagPresetCombo = new ComboBox
+            {
+                Location      = new Point(14, 59),
+                Width         = 195,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor     = Surface,
+                ForeColor     = TextCol,
+                FlatStyle     = FlatStyle.Flat,
+                Font          = new Font("Segoe UI", 9f),
+            };
+            foreach (var preset in PresetTags)
+                _tagPresetCombo.Items.Add($"{preset.tag} {preset.name}");
+            _tagPresetCombo.SelectedIndex = 0;
+            _tagPresetCombo.SelectedIndexChanged += (_, _) => OnTagPresetChanged();
+            g4.Controls.Add(_tagPresetCombo);
+
+            var lblHex = MakeLabel("Tag Hex (GGGG,EEEE)", 8, color: Muted);
+            lblHex.Location = new Point(219, 42);
+            g4.Controls.Add(lblHex);
+
+            _tagHexBox = new TextBox
+            {
+                Text        = PresetTags[0].tag,
+                Location    = new Point(219, 59),
+                Width       = 120,
+                BackColor   = Surface,
+                ForeColor   = TextCol,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font        = new Font("Consolas", 9f),
+                ReadOnly    = true,
+            };
+            g4.Controls.Add(_tagHexBox);
+
+            var lblName = MakeLabel("Description", 8, color: Muted);
+            lblName.Location = new Point(349, 42);
+            g4.Controls.Add(lblName);
+
+            _tagNameBox = new TextBox
+            {
+                Text        = PresetTags[0].name,
+                Location    = new Point(349, 59),
+                Width       = 330,
+                BackColor   = Surface,
+                ForeColor   = TextCol,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font        = new Font("Segoe UI", 9f),
+                ReadOnly    = true,
+            };
+            g4.Controls.Add(_tagNameBox);
+
+            // Row 2: Replacement Value and + Add Tag button
+            var lblVal = MakeLabel("Replacement Value", 8, color: Muted);
+            lblVal.Location = new Point(14, 90);
+            g4.Controls.Add(lblVal);
+
+            _tagValBox = new TextBox
+            {
+                Location    = new Point(14, 107),
+                Width       = 530,
+                BackColor   = Surface,
+                ForeColor   = TextCol,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font        = new Font("Consolas", 9f),
+            };
+            _tagValBox.KeyDown += (_, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    AddTagOverride();
+                }
+            };
+            g4.Controls.Add(_tagValBox);
+
+            _addTagBtn = MakeButton("+ Add / Update Tag", Accent, 140);
+            _addTagBtn.Location = new Point(554, 106);
+            _addTagBtn.Height   = 24;
+            _addTagBtn.Font     = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            _addTagBtn.Click   += (_, _) => AddTagOverride();
+            g4.Controls.Add(_addTagBtn);
+
+            // Row 3: Tag list
+            _tagListView = new ListView
+            {
+                Location      = new Point(14, 138),
+                Width         = 680,
+                Height        = 115,
+                View          = View.Details,
+                FullRowSelect = true,
+                GridLines     = false,
+                BackColor     = Surface,
+                ForeColor     = TextCol,
+                BorderStyle   = BorderStyle.FixedSingle,
+                Font          = new Font("Consolas", 8.5f),
+            };
+            _tagListView.Columns.Add("Tag", 110);
+            _tagListView.Columns.Add("Description", 200);
+            _tagListView.Columns.Add("Replacement Value", 350);
+            g4.Controls.Add(_tagListView);
+
+            // Row 4: Action buttons for tags
+            _removeTagBtn = MakeButton("Remove Selected", Surface, 130);
+            _removeTagBtn.ForeColor = Red;
+            _removeTagBtn.Location  = new Point(14, 260);
+            _removeTagBtn.Height    = 25;
+            _removeTagBtn.Font      = new Font("Segoe UI", 8.5f);
+            _removeTagBtn.Click    += (_, _) => RemoveSelectedTag();
+            g4.Controls.Add(_removeTagBtn);
+
+            var clearTagsBtn = MakeButton("Clear All Overrides", Surface, 140);
+            clearTagsBtn.ForeColor = Muted;
+            clearTagsBtn.Location  = new Point(152, 260);
+            clearTagsBtn.Height    = 25;
+            clearTagsBtn.Font      = new Font("Segoe UI", 8.5f);
+            clearTagsBtn.Click    += (_, _) => ClearAllTags();
+            g4.Controls.Add(clearTagsBtn);
+
+            FinalizeGroup(g4, 296);
+            y = g4.Bottom + 16;
+
+            PopulateTagListView();
+
             // Save button
-            var saveBtn = MakeButton("Save Settings", Accent, 130);
-            saveBtn.Left = scroll.Width - 150;
-            saveBtn.Top  = y;
-            saveBtn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var saveBtn = MakeButton("Save Settings", Accent, 140);
+            saveBtn.Height = 32;
+            saveBtn.Left   = 554;
+            saveBtn.Top    = y;
             saveBtn.Click += (_, _) => SaveSettings();
             scroll.Controls.Add(saveBtn);
 
+            // Dynamic layout adjustment on scroll resize
             scroll.Resize += (_, _) =>
             {
-                foreach (Control c in scroll.Controls)
-                    if (c is GroupBox gb) gb.Width = scroll.ClientSize.Width - 20;
+                int w = scroll.ClientSize.Width;
+                if (w < 600) return;
+                int groupW = w - 28;
+                int innerW = groupW - 28;
+                int colW = (innerW - 16) / 2;
+                int col2X = 14 + colW + 16;
+
+                // Adjust Groups
+                g0.Width = groupW;
+                g1.Width = groupW;
+                g2.Width = groupW;
+                g3.Width = groupW;
+                g4.Width = groupW;
+
+                // DCMTK
+                ResizeBrowseField(g0, _dcmtkBin, 14, innerW);
+
+                // Receiver
+                ResizeColField(_rcvAet, 14, colW);
+                ResizeColField(_rcvPort, col2X, colW);
+                ResizeColField(_rcvTimeout, 14, colW);
+                ResizeColField(_eosTimeout, col2X, colW);
+                ResizeBrowseField(g1, _rcvDir, 14, innerW);
+
+                // Forwarder
+                ResizeColField(_fwdMyAet, 14, colW);
+                ResizeColField(_fwdAet, col2X, colW);
+                ResizeColField(_fwdHost, 14, colW);
+                ResizeColField(_fwdPort, col2X, colW);
+
+                // Options & Reliability
+                ResizeColField(_autoRestartHours, 14, colW);
+                ResizeColField(_retryCount, col2X, colW);
+                ResizeColField(_maxPdu, 14, colW);
+
+                // Tag overrides
+                _tagNameBox.Width = Math.Max(120, innerW - 349);
+                _tagValBox.Width  = Math.Max(200, innerW - 156);
+                _addTagBtn.Left   = 14 + _tagValBox.Width + 10;
+                _tagListView.Width = innerW;
+                if (_tagListView.Columns.Count >= 3)
+                    _tagListView.Columns[2].Width = Math.Max(150, innerW - 320);
+
+                // Save button
+                saveBtn.Left = groupW - saveBtn.Width + 14;
             };
         }
 
@@ -261,72 +461,67 @@ namespace DicomRelay
             var g = new GroupBox
             {
                 Text      = title,
-                Left      = 10,
+                Left      = 14,
                 Top       = y,
-                Width     = parent.ClientSize.Width > 0 ? parent.ClientSize.Width - 20 : 660,
+                Width     = parent.ClientSize.Width > 0 ? parent.ClientSize.Width - 28 : 680,
                 BackColor = BG,
                 ForeColor = Muted,
-                Font      = new Font("Segoe UI", 8f),
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 AutoSize  = false,
             };
             parent.Controls.Add(g);
             return g;
         }
 
-        private void FinalizeGroup(GroupBox g, int innerY)
+        private static void FinalizeGroup(GroupBox g, int height)
         {
-            g.Height = innerY + 12;
+            g.Height = height;
         }
 
-        private TextBox AddField(GroupBox group, string label, string value, ref int y)
+        private static TextBox AddColField(GroupBox group, string label, string value, int x, int y, int width)
         {
-            y = y == 0 ? 22 : y;
             var lbl = MakeLabel(label, 8, color: Muted);
-            lbl.Location = new Point(10, y);
+            lbl.Location = new Point(x, y);
             group.Controls.Add(lbl);
-            y += 18;
 
             var tb = new TextBox
             {
-                Text      = value,
-                Location  = new Point(10, y),
-                Width     = 280,
-                BackColor = Surface,
-                ForeColor = TextCol,
+                Text        = value,
+                Location    = new Point(x, y + 17),
+                Width       = width,
+                BackColor   = Surface,
+                ForeColor   = TextCol,
                 BorderStyle = BorderStyle.FixedSingle,
-                Font      = new Font("Consolas", 9f),
+                Font        = new Font("Consolas", 9f),
             };
             group.Controls.Add(tb);
-            y += 30;
             return tb;
         }
 
-        private TextBox AddFieldWithBrowse(GroupBox group, string label, string value, ref int y, bool browseDir = false)
+        private static TextBox AddFieldWithBrowse(GroupBox group, string label, string value, int x, int y, int width, bool browseDir = false)
         {
-            y = y == 0 ? 22 : y;
             var lbl = MakeLabel(label, 8, color: Muted);
-            lbl.Location = new Point(10, y);
+            lbl.Location = new Point(x, y);
             group.Controls.Add(lbl);
-            y += 18;
 
             var tb = new TextBox
             {
-                Text      = value,
-                Location  = new Point(10, y),
-                Width     = 340,
-                BackColor = Surface,
-                ForeColor = TextCol,
+                Text        = value,
+                Location    = new Point(x, y + 17),
+                Width       = width - 40,
+                BackColor   = Surface,
+                ForeColor   = TextCol,
                 BorderStyle = BorderStyle.FixedSingle,
-                Font      = new Font("Consolas", 9f),
+                Font        = new Font("Consolas", 9f),
             };
             group.Controls.Add(tb);
 
             var browse = new Button
             {
                 Text      = "…",
-                Location  = new Point(356, y - 1),
-                Width     = 30,
-                Height    = 22,
+                Location  = new Point(x + width - 36, y + 16),
+                Width     = 34,
+                Height    = 23,
                 BackColor = Surface,
                 ForeColor = Muted,
                 FlatStyle = FlatStyle.Flat,
@@ -348,26 +543,139 @@ namespace DicomRelay
                 }
             };
             group.Controls.Add(browse);
-            y += 30;
             return tb;
         }
 
-        private CheckBox AddCheck(GroupBox group, string label, bool value, ref int y)
+        private static CheckBox AddCheckAt(GroupBox group, string label, bool value, int x, int y)
         {
-            y = y == 0 ? 22 : y;
             var cb = new CheckBox
             {
                 Text      = label,
                 Checked   = value,
-                Location  = new Point(10, y),
+                Location  = new Point(x, y),
                 AutoSize  = true,
                 BackColor = BG,
                 ForeColor = TextCol,
                 Font      = new Font("Segoe UI", 9f),
             };
             group.Controls.Add(cb);
-            y += 26;
             return cb;
+        }
+
+        private static void ResizeColField(TextBox tb, int x, int width)
+        {
+            if (tb == null) return;
+            tb.Left  = x;
+            tb.Width = width;
+        }
+
+        private static void ResizeBrowseField(GroupBox g, TextBox tb, int x, int fullWidth)
+        {
+            if (tb == null) return;
+            tb.Left  = x;
+            tb.Width = fullWidth - 40;
+            foreach (Control c in g.Controls)
+            {
+                if (c is Button b && b.Text == "…")
+                    b.Left = x + fullWidth - 36;
+            }
+        }
+
+        private void OnTagPresetChanged()
+        {
+            int idx = _tagPresetCombo.SelectedIndex;
+            if (idx < 0 || idx >= PresetTags.Length) return;
+
+            var (tag, name) = PresetTags[idx];
+            if (tag == "(CUSTOM)")
+            {
+                _tagHexBox.Text = "(0000,0000)";
+                _tagNameBox.Text = "Custom Tag";
+                _tagHexBox.ReadOnly = false;
+                _tagNameBox.ReadOnly = false;
+                _tagHexBox.Focus();
+                _tagHexBox.SelectAll();
+            }
+            else
+            {
+                _tagHexBox.Text = tag;
+                _tagNameBox.Text = name;
+                _tagHexBox.ReadOnly = true;
+                _tagNameBox.ReadOnly = true;
+                _tagValBox.Focus();
+            }
+        }
+
+        private void AddTagOverride()
+        {
+            var rawTag = _tagHexBox.Text.Trim().ToUpperInvariant();
+            if (!rawTag.StartsWith("(") && !rawTag.EndsWith(")"))
+            {
+                var parts = rawTag.Split(new[] { ',', ' ', ':' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2 && parts[0].Length == 4 && parts[1].Length == 4)
+                    rawTag = $"({parts[0]},{parts[1]})";
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(rawTag, @"^\([0-9A-F]{4},[0-9A-F]{4}\)$"))
+            {
+                MessageBox.Show("Tag must be in standard hex format: (GGGG,EEEE) e.g. (0008,0080)", "Invalid Tag", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _tagHexBox.Focus();
+                return;
+            }
+
+            var name = string.IsNullOrWhiteSpace(_tagNameBox.Text) ? "Custom Tag" : _tagNameBox.Text.Trim();
+            var val = _tagValBox.Text;
+
+            var existing = _cfg.TagOverrides.FirstOrDefault(t => t.Tag.Equals(rawTag, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.Name = name;
+                existing.Value = val;
+            }
+            else
+            {
+                _cfg.TagOverrides.Add(new DicomTagOverride { Tag = rawTag, Name = name, Value = val });
+            }
+
+            PopulateTagListView();
+            _tagValBox.Clear();
+            RefreshCommands();
+        }
+
+        private void RemoveSelectedTag()
+        {
+            if (_tagListView.SelectedItems.Count == 0) return;
+            var selected = _tagListView.SelectedItems[0];
+            if (selected.Tag is DicomTagOverride tagOverride)
+            {
+                _cfg.TagOverrides.Remove(tagOverride);
+                PopulateTagListView();
+                RefreshCommands();
+            }
+        }
+
+        private void ClearAllTags()
+        {
+            if (_cfg.TagOverrides.Count == 0) return;
+            if (MessageBox.Show("Remove all configured tag overrides?", "Clear Tags", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                _cfg.TagOverrides.Clear();
+                PopulateTagListView();
+                RefreshCommands();
+            }
+        }
+
+        private void PopulateTagListView()
+        {
+            _tagListView.Items.Clear();
+            foreach (var tag in _cfg.TagOverrides)
+            {
+                var item = new ListViewItem(tag.Tag);
+                item.SubItems.Add(tag.Name);
+                item.SubItems.Add(tag.Value);
+                item.Tag = tag;
+                _tagListView.Items.Add(item);
+            }
         }
 
 
@@ -632,6 +940,7 @@ namespace DicomRelay
 
             var storescp = Path.Combine(_cfg.DcmtkBin, "storescp.exe");
             var storescu = Path.Combine(_cfg.DcmtkBin, "storescu.exe");
+            var dcmodify = Path.Combine(_cfg.DcmtkBin, "dcmodify.exe");
 
             var fwdCmd = $"\"{storescu}\" -aet {_cfg.FwdMyAet} -aec {_cfg.FwdAet} {_cfg.FwdHost} {_cfg.FwdPort} +sd \"#p\"";
             if (_cfg.DeleteAfterFwd) fwdCmd = $"cmd /c ({fwdCmd}) && rmdir /s /q \"#p\"";
@@ -647,6 +956,13 @@ namespace DicomRelay
             sb.AppendLine(":: storescp — Receiver");
             sb.AppendLine($"\"{storescp}\" {args}");
             sb.AppendLine();
+            if (_cfg.TagOverrides.Count > 0)
+            {
+                sb.AppendLine(":: dcmodify — Tag overrides applied before forward");
+                var tagArgs = string.Join(" ", _cfg.TagOverrides.Select(t => $"-nb -i \"{t.Tag}={t.Value}\""));
+                sb.AppendLine($"\"{dcmodify}\" {tagArgs} \"<dicom_file>\"");
+                sb.AppendLine();
+            }
             sb.AppendLine(":: storescu — Manual forward (replace <study_folder> with actual path)");
             sb.Append($"\"{storescu}\" -aet {_cfg.FwdMyAet} -aec {_cfg.FwdAet} {_cfg.FwdHost} {_cfg.FwdPort} +sd \"<study_folder>\"");
 
@@ -692,7 +1008,6 @@ namespace DicomRelay
             _cfg.AutoForward    = _autoFwd.Checked;
             _cfg.ManualMode     = _manualMode.Checked;
             _cfg.DeleteAfterFwd = _deleteAfter.Checked;
-            _cfg.InstitutionName = _institutionName.Text;
             _cfg.StartWithWindows = _startWithWindows.Checked;
             if (int.TryParse(_autoRestartHours.Text, out var hrs))
                 _cfg.AutoRestartHours = hrs;
@@ -700,6 +1015,9 @@ namespace DicomRelay
                 _cfg.MaxPdu = pdu;
             if (int.TryParse(_retryCount.Text, out var retry))
                 _cfg.RetryCount = retry;
+
+            // Sync legacy InstitutionName property
+            _cfg.InstitutionName = _cfg.TagOverrides.FirstOrDefault(t => t.Tag.Equals("(0008,0080)", StringComparison.OrdinalIgnoreCase))?.Value ?? "";
 
             // Apply Windows startup registration immediately
             try { StartupHelper.SetEnabled(_cfg.StartWithWindows); }
